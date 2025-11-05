@@ -1,0 +1,16 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "avatar-group",
+  "type": "registry:ui",
+  "title": "Avatar Group",
+  "description": "A component for grouping avatars together.",
+  "dependencies": [],
+  "registryDependencies": [],
+  "files": [
+    {
+      "path": "registry/new-york/ui/avatar-group.tsx",
+      "content": "\"use client\"\n\nimport { cn } from \"@/lib/utils\"\nimport React, {\n  Children,\n  cloneElement,\n  forwardRef,\n  isValidElement,\n  useMemo,\n} from \"react\"\n\ntype TAvatarGroupRef = HTMLDivElement\ntype TAvatarGroupProps = React.HTMLAttributes<HTMLDivElement> & {\n  max?: number\n  spacing?: number\n}\n\nconst AvatarGroup = forwardRef<TAvatarGroupRef, TAvatarGroupProps>(\n  ({ className, children, max = 1, spacing = 10, ...props }, ref) => {\n    const avatarItems = useMemo(\n      () =>\n        Children.toArray(children).filter(\n          isValidElement\n        ) as React.ReactElement<{\n          className?: string\n          style?: React.CSSProperties\n        }>[],\n      [children]\n    )\n\n    const renderContent = useMemo(() => {\n      return (\n        <>\n          {avatarItems.slice(0, max).map((child, index) =>\n            cloneElement(child, {\n              className: cn(\n                child.props.className,\n                \"border-2 border-background\"\n              ),\n              style: {\n                marginLeft: index === 0 ? 0 : -spacing,\n                ...child.props.style,\n              },\n            })\n          )}\n\n          {avatarItems.length > max && (\n            <div\n              className={cn(\n                \"relative flex items-center justify-center rounded-full border-2 border-background bg-muted\",\n                avatarItems[0]?.props.className\n              )}\n              style={{ marginLeft: -spacing }}>\n              <p>+{avatarItems.length - max}</p>\n            </div>\n          )}\n        </>\n      )\n    }, [avatarItems, max, spacing])\n\n    return (\n      <div\n        ref={ref}\n        className={cn(\"relative flex\", className)}\n        {...props}>\n        {renderContent}\n      </div>\n    )\n  }\n)\n\nAvatarGroup.displayName = \"AvatarGroup\"\n\nexport { AvatarGroup }\nexport type { TAvatarGroupProps, TAvatarGroupRef }\n",
+      "type": "registry:ui"
+    }
+  ]
+}
