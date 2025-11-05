@@ -1,7 +1,7 @@
 "use client"
 
 import { cva, type VariantProps } from "class-variance-authority"
-import type { Locale } from "date-fns"
+import type { FormatOptions, Locale } from "date-fns"
 import {
   addDays,
   addMonths,
@@ -16,7 +16,6 @@ import {
   endOfWeek,
   endOfYear,
   format,
-  formatDate,
   getDaysInMonth,
   isAfter,
   isBefore,
@@ -46,8 +45,15 @@ import {
   Text,
 } from "lucide-react"
 import type React from "react"
-import type { Dispatch, HTMLAttributes, SetStateAction } from "react"
-import { createContext, useContext, useEffect, useMemo, useState } from "react"
+import type { HTMLAttributes } from "react"
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -99,6 +105,15 @@ const VISIBLE_HOURS = { from: 0, to: 24 }
 
 const MAX_VISIBLE_EVENTS = 3
 
+const AGENDA_GROUP_DATE_FORMAT = "EEEE, MMMM d, yyyy"
+const AGENDA_HEADER_DAY_FORMAT = "EE d"
+const WEEK_HEADER_DAY_FORMAT = "EE d"
+const RANGE_DATE_FORMAT = "MMM d, yyyy"
+const DATE_FORMAT = "dd-MM-yyyy"
+const LONG_MONTH_FORMAT = "MMMM"
+const TIME_FORMAT = "HH:mm"
+const HOUR_FORMAT = "HH"
+
 const DEFAULT_COPY = {
   EVENT_COUNT: "events",
   NO_EVENTS_SCHEDULED: "No events scheduled for the selected month",
@@ -117,8 +132,11 @@ const DEFAULT_COPY = {
   SATURDAY: "Sat",
 }
 
-function rangeText(view: TCalendarView, date: Date) {
-  const formatString = "MMM d, yyyy"
+function rangeText(
+  view: TCalendarView,
+  date: Date,
+  formatDate: EventCalendarContextValue["formatDate"]
+) {
   let start: Date
   let end: Date
 
@@ -140,12 +158,15 @@ function rangeText(view: TCalendarView, date: Date) {
       end = endOfWeek(date)
       break
     case "day":
-      return format(date, formatString)
+      return formatDate(date, RANGE_DATE_FORMAT)
     default:
       return "Error while formatting "
   }
 
-  return `${format(start, formatString)} - ${format(end, formatString)}`
+  return `${formatDate(start, RANGE_DATE_FORMAT)} - ${formatDate(
+    end,
+    RANGE_DATE_FORMAT
+  )}`
 }
 
 function navigateDate(
@@ -421,45 +442,18 @@ function getMonthCellEvents(
     })
 }
 
-const EventCalendarContext = createContext(
-  {} as {
-    selectedDate: Date
-    setSelectedDate: (date: Date | undefined) => void
-    workingHours: TWorkingHours
-    visibleHours: TVisibleHours
-    events: IEvent[]
-    setLocalEvents: Dispatch<SetStateAction<IEvent[]>>
-    view: TCalendarView
-    badgeVariant: TBadgeVariant
-    updateEvent: (event: IEvent) => void
-    singleDayEvents: IEvent[]
-    multiDayEvents: IEvent[]
-    locale: Locale
-    copy: typeof DEFAULT_COPY
-    onAdd?: ({
-      startDate,
-      hour,
-      minute,
-    }: {
-      startDate: Date
-      hour: number
-      minute: number
-    }) => void
-    onDrag?: (event: IEvent) => void
-    onDetail?: (event: IEvent) => void
-    onViewUpdate?: (view: TCalendarView) => void
-  }
-)
-
-export type EventCalendarProviderProps = {
-  children: React.ReactNode
+export interface EventCalendarContextValue {
+  selectedDate: Date
+  setSelectedDate: (date: Date | undefined) => void
+  workingHours: TWorkingHours
+  visibleHours: TVisibleHours
   events: IEvent[]
-  workingHours?: TWorkingHours
-  visibleHours?: TVisibleHours
-  view?: TCalendarView
-  badgeVariant?: TBadgeVariant
-  locale?: Locale // locale type to Locale
-  copy?: Partial<typeof DEFAULT_COPY>
+  view: TCalendarView
+  badgeVariant: TBadgeVariant
+  singleDayEvents: IEvent[]
+  multiDayEvents: IEvent[]
+  locale: Locale
+  copy: typeof DEFAULT_COPY
   onAdd?: ({
     startDate,
     hour,
@@ -469,10 +463,35 @@ export type EventCalendarProviderProps = {
     hour: number
     minute: number
   }) => void
-  onDrag?: (event: IEvent) => void
   onDetail?: (event: IEvent) => void
   onViewUpdate?: (view: TCalendarView) => void
+  formatDate: (
+    date: string | number | Date,
+    formatStr: string,
+    options?: FormatOptions
+  ) => string
 }
+
+const EventCalendarContext = createContext({} as EventCalendarContextValue)
+
+export type EventCalendarProviderProps = Partial<
+  Pick<
+    EventCalendarContextValue,
+    | "workingHours"
+    | "visibleHours"
+    | "view"
+    | "badgeVariant"
+    | "locale"
+    | "copy"
+    | "onAdd"
+    | "onDetail"
+    | "onViewUpdate"
+  >
+> & {
+  children: React.ReactNode
+  events: IEvent[]
+}
+
 function EventCalendarProvider({
   children,
   events,
@@ -481,28 +500,17 @@ function EventCalendarProvider({
   view = "day",
   badgeVariant = "dot",
   locale = enUS,
-  copy = {},
+  copy = DEFAULT_COPY,
   onAdd,
-  onDrag,
   onDetail,
   onViewUpdate,
 }: EventCalendarProviderProps) {
   const [selectedDate, setSelectedDate] = useState(new Date())
 
-  // This localEvents doesn't need to exists in a real scenario.
-  // It's used here just to simulate the update of the events.
-  // In a real scenario, the events would be updated in the backend
-  // and the request that fetches the events should be refetched
-  const [localEvents, setLocalEvents] = useState<IEvent[]>(events)
-
   const mergedCopy = useMemo(() => ({ ...DEFAULT_COPY, ...copy }), [copy])
 
-  useEffect(() => {
-    setLocalEvents(events)
-  }, [events])
-
   const filteredEvents = useMemo(() => {
-    return localEvents.filter((event) => {
+    return events.filter((event) => {
       const eventStartDate = parseISO(event.startDate)
       const eventEndDate = parseISO(event.endDate)
 
@@ -580,7 +588,7 @@ function EventCalendarProvider({
         return isInSelectedDay
       }
     })
-  }, [selectedDate, localEvents, view])
+  }, [selectedDate, events, view])
 
   const singleDayEvents = filteredEvents.filter((event) => {
     const startDate = parseISO(event.startDate)
@@ -599,19 +607,16 @@ function EventCalendarProvider({
     setSelectedDate(date)
   }
 
-  const updateEvent = (event: IEvent) => {
-    onDrag?.(event)
-    const newEvent: IEvent = event
-
-    newEvent.startDate = new Date(event.startDate).toISOString()
-    newEvent.endDate = new Date(event.endDate).toISOString()
-
-    setLocalEvents((prev) => {
-      const index = prev.findIndex((e) => e.id === event.id)
-      if (index === -1) return prev
-      return [...prev.slice(0, index), newEvent, ...prev.slice(index + 1)]
-    })
-  }
+  const formatDate = useCallback(
+    (
+      date: string | number | Date,
+      formatStr: string,
+      options?: FormatOptions | undefined
+    ) => {
+      return format(date, formatStr, { ...options, locale })
+    },
+    [locale]
+  )
 
   return (
     <EventCalendarContext.Provider
@@ -621,19 +626,17 @@ function EventCalendarProvider({
         visibleHours,
         workingHours,
         // If you go to the refetch approach, you can remove the localEvents and pass the events directly
-        events: localEvents,
-        setLocalEvents,
+        events,
         view,
         badgeVariant,
-        updateEvent,
         singleDayEvents,
         multiDayEvents,
-        locale, // Pass locale directly
+        locale,
         copy: mergedCopy,
         onAdd,
-        onDrag,
         onDetail,
         onViewUpdate,
+        formatDate,
       }}>
       {children}
     </EventCalendarContext.Provider>
@@ -667,13 +670,13 @@ export function EventCalendarHeader({
 }: {
   children: React.ReactNode
 }) {
-  const { selectedDate, setSelectedDate, events, view, copy } =
+  const { selectedDate, setSelectedDate, events, view, copy, formatDate } =
     useEventCalendar()
 
   const today = new Date()
   const handleClick = () => setSelectedDate(today)
 
-  const month = formatDate(selectedDate, "MMMM")
+  const month = formatDate(selectedDate, LONG_MONTH_FORMAT)
   const year = selectedDate.getFullYear()
 
   const eventCount = useMemo(
@@ -721,7 +724,7 @@ export function EventCalendarHeader({
             </Button>
 
             <p className='text-sm text-muted-foreground'>
-              {rangeText(view, selectedDate)}
+              {rangeText(view, selectedDate, formatDate)}
             </p>
 
             <Button
@@ -788,7 +791,7 @@ function AgendaEventCard({
   eventCurrentDay?: number
   eventTotalDays?: number
 }) {
-  const { badgeVariant, onDetail, copy } = useEventCalendar()
+  const { badgeVariant, onDetail, copy, formatDate } = useEventCalendar()
 
   const startDate = parseISO(event.startDate)
   const endDate = parseISO(event.endDate)
@@ -842,7 +845,8 @@ function AgendaEventCard({
         <div className='flex items-center gap-1'>
           <Clock className='size-3 shrink-0' />
           <p className='text-xs text-foreground'>
-            {format(startDate, "h:mm a")} - {format(endDate, "h:mm a")}
+            {formatDate(startDate, TIME_FORMAT)} -{" "}
+            {formatDate(endDate, TIME_FORMAT)}
           </p>
         </div>
 
@@ -859,10 +863,12 @@ function AgendaDayGroup({
   date,
   events,
   multiDayEvents,
+  formatDate,
 }: {
   date: Date
   events: IEvent[]
   multiDayEvents: IEvent[]
+  formatDate: EventCalendarContextValue["formatDate"]
 }) {
   const sortedEvents = [...events].sort(
     (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
@@ -872,7 +878,7 @@ function AgendaDayGroup({
     <div className='space-y-4'>
       <div className='sticky top-0 flex items-center gap-4 bg-background py-2'>
         <p className='text-sm font-semibold'>
-          {format(date, "EEEE, MMMM d, yyyy")}
+          {formatDate(date, AGENDA_GROUP_DATE_FORMAT)}
         </p>
       </div>
 
@@ -909,8 +915,14 @@ function AgendaDayGroup({
 }
 
 export function EventCalendarAgendaView() {
-  const { selectedDate, singleDayEvents, multiDayEvents, view, copy } =
-    useEventCalendar()
+  const {
+    selectedDate,
+    singleDayEvents,
+    multiDayEvents,
+    view,
+    copy,
+    formatDate,
+  } = useEventCalendar()
 
   const eventsByDay = useMemo(() => {
     const allDates = new Map<
@@ -922,7 +934,7 @@ export function EventCalendarAgendaView() {
       const eventDate = parseISO(event.startDate)
       if (!isSameMonth(eventDate, selectedDate)) return
 
-      const dateKey = format(eventDate, "yyyy-MM-dd")
+      const dateKey = formatDate(eventDate, DATE_FORMAT)
 
       if (!allDates.has(dateKey)) {
         allDates.set(dateKey, {
@@ -944,7 +956,7 @@ export function EventCalendarAgendaView() {
 
       while (currentDate <= lastDate) {
         if (isSameMonth(currentDate, selectedDate)) {
-          const dateKey = format(currentDate, "yyyy-MM-dd")
+          const dateKey = formatDate(currentDate, DATE_FORMAT)
 
           if (!allDates.has(dateKey)) {
             allDates.set(dateKey, {
@@ -970,17 +982,18 @@ export function EventCalendarAgendaView() {
   const hasAnyEvents = singleDayEvents.length > 0 || multiDayEvents.length > 0
 
   return (
-    <div className='h-[800px]'>
+    <div className='h-[600px]'>
       <ScrollArea
         className='h-full'
         type='always'>
         <div className='space-y-6 p-4'>
           {eventsByDay.map((dayGroup) => (
             <AgendaDayGroup
-              key={format(dayGroup.date, "yyyy-MM-dd")}
+              key={formatDate(dayGroup.date, DATE_FORMAT)}
               date={dayGroup.date}
               events={dayGroup.events}
               multiDayEvents={dayGroup.multiDayEvents}
+              formatDate={formatDate}
             />
           ))}
 
@@ -1071,9 +1084,9 @@ function YearViewDayCell({
 }
 
 function YearViewMonth({ month, events }: { month: Date; events: IEvent[] }) {
-  const { setSelectedDate, onViewUpdate, copy } = useEventCalendar()
+  const { setSelectedDate, onViewUpdate, copy, formatDate } = useEventCalendar()
 
-  const monthName = format(month, "MMMM")
+  const monthName = formatDate(month, LONG_MONTH_FORMAT)
 
   const daysInMonth = useMemo(() => {
     const totalDays = getDaysInMonth(month)
@@ -1198,7 +1211,7 @@ function MonthEventBadge({
   VariantProps<typeof eventBadgeVariants>,
   "color" | "multiDayPosition"
 >) {
-  const { badgeVariant, onDetail, copy } = useEventCalendar()
+  const { badgeVariant, onDetail, copy, formatDate } = useEventCalendar()
 
   const itemStart = startOfDay(parseISO(event.startDate))
   const itemEnd = endOfDay(parseISO(event.endDate))
@@ -1274,7 +1287,7 @@ function MonthEventBadge({
       </div>
 
       {renderBadgeText && (
-        <span>{format(new Date(event.startDate), "h:mm a")}</span>
+        <span>{formatDate(new Date(event.startDate), TIME_FORMAT)}</span>
       )}
     </div>
   )
@@ -1461,9 +1474,11 @@ export function EventCalendarMonthView() {
 function CalendarTimeline({
   firstVisibleHour,
   lastVisibleHour,
+  formatDate,
 }: {
   firstVisibleHour: number
   lastVisibleHour: number
+  formatDate: EventCalendarContextValue["formatDate"]
 }) {
   const [currentTime, setCurrentTime] = useState(new Date())
 
@@ -1483,7 +1498,7 @@ function CalendarTimeline({
   }
 
   const formatCurrentTime = () => {
-    return format(currentTime, "h:mm a")
+    return formatDate(currentTime, TIME_FORMAT)
   }
 
   const currentHour = currentTime.getHours()
@@ -1550,7 +1565,7 @@ function EventBlock({
   event: IEvent
 } & (HTMLAttributes<HTMLDivElement> &
   Omit<VariantProps<typeof calendarWeekEventCardVariants>, "color">)) {
-  const { badgeVariant, onDetail } = useEventCalendar()
+  const { badgeVariant, onDetail, formatDate } = useEventCalendar()
 
   const start = parseISO(event.startDate)
   const end = parseISO(event.endDate)
@@ -1601,7 +1616,7 @@ function EventBlock({
 
       {durationInMinutes > 25 && (
         <p>
-          {format(start, "h:mm a")} - {format(end, "h:mm a")}
+          {formatDate(start, TIME_FORMAT)} - {formatDate(end, TIME_FORMAT)}
         </p>
       )}
     </div>
@@ -1729,6 +1744,7 @@ export function EventCalendarWeekView() {
     multiDayEvents,
     view,
     onAdd,
+    formatDate,
   } = useEventCalendar()
 
   if (view !== "week") return null
@@ -1762,11 +1778,8 @@ export function EventCalendarWeekView() {
               {weekDays.map((day, index) => (
                 <span
                   key={index}
-                  className='py-2 text-center text-xs font-medium text-muted-foreground'>
-                  {format(day, "EE")}{" "}
-                  <span className='ml-1 font-semibold text-foreground'>
-                    {format(day, "d")}
-                  </span>
+                  className='py-2 text-center text-xs font-semibold text-muted-foreground'>
+                  {formatDate(day, WEEK_HEADER_DAY_FORMAT)}
                 </span>
               ))}
             </div>
@@ -1774,7 +1787,7 @@ export function EventCalendarWeekView() {
         </div>
 
         <ScrollArea
-          className='h-[736px]'
+          className='h-[600px]'
           type='always'>
           <div className='flex overflow-hidden'>
             {/* Hours column */}
@@ -1787,7 +1800,10 @@ export function EventCalendarWeekView() {
                   <div className='absolute -top-3 right-2 flex h-6 items-center'>
                     {index !== 0 && (
                       <span className='text-xs text-muted-foreground'>
-                        {format(new Date().setHours(hour, 0, 0, 0), "hh a")}
+                        {formatDate(
+                          new Date().setHours(hour, 0, 0, 0),
+                          HOUR_FORMAT
+                        )}
                       </span>
                     )}
                   </div>
@@ -1922,6 +1938,7 @@ export function EventCalendarWeekView() {
               <CalendarTimeline
                 firstVisibleHour={earliestEventHour}
                 lastVisibleHour={latestEventHour}
+                formatDate={formatDate}
               />
             </div>
           </div>
@@ -2072,6 +2089,7 @@ export function EventCalendarDayView() {
     view,
     onAdd,
     copy,
+    formatDate,
   } = useEventCalendar()
 
   if (view !== "day") return null
@@ -2093,10 +2111,9 @@ export function EventCalendarDayView() {
   })
 
   const groupedEvents = groupEvents(dayEvents)
-
   return (
     <div className='flex'>
-      <div className='flex flex-1 flex-col'>
+      <div className='flex flex-col flex-1'>
         <div>
           <DayViewMultiDayEventsRow
             selectedDate={selectedDate}
@@ -2106,30 +2123,29 @@ export function EventCalendarDayView() {
           {/* Day header */}
           <div className='relative z-20 flex border-b'>
             <div className='w-18'></div>
-            <span className='flex-1 border-l py-2 text-center text-xs font-medium text-muted-foreground'>
-              {format(selectedDate, "EE")}{" "}
-              <span className='font-semibold text-foreground'>
-                {format(selectedDate, "d")}
-              </span>
+            <span className='flex-1 border-l font-semibold py-2 text-center text-xs text-muted-foreground'>
+              {formatDate(selectedDate, AGENDA_HEADER_DAY_FORMAT)}
             </span>
           </div>
         </div>
 
         <ScrollArea
-          className='h-[800px]'
+          className='h-[600px]'
           type='always'>
           <div className='flex'>
             {/* Hours column */}
-            <div className='relative w-18'>
+            <div className='flex flex-col w-18 flex-shrink-0'>
               {hours.map((hour, index) => (
                 <div
                   key={hour}
-                  className='relative'
-                  style={{ height: "96px" }}>
+                  className='relative h-24'>
                   <div className='absolute -top-3 right-2 flex h-6 items-center'>
                     {index !== 0 && (
                       <span className='text-xs text-muted-foreground'>
-                        {format(new Date().setHours(hour, 0, 0, 0), "hh a")}
+                        {formatDate(
+                          new Date(new Date().setHours(hour, 0, 0, 0)),
+                          HOUR_FORMAT
+                        )}
                       </span>
                     )}
                   </div>
@@ -2151,57 +2167,32 @@ export function EventCalendarDayView() {
                     <div
                       key={hour}
                       className={cn(
-                        "relative",
-                        isDisabled &&
-                          "bg-[repeating-linear-gradient(-60deg,hsl(var(--border))_0_0.5px,transparent_0.5px_8px)]"
-                      )}
-                      style={{ height: "96px" }}>
+                        "relative h-24",
+                        isDisabled && "bg-calendar-disabled-hour"
+                      )}>
                       {index !== 0 && (
-                        <div className='pointer-events-none absolute inset-x-0 top-0 border-b'></div>
+                        <div className='pointer-events-none absolute inset-x-0 top-0 border-b' />
                       )}
 
-                      {hours.map((hour, index) => {
-                        const isDisabled = !isWorkingHour(
-                          selectedDate,
-                          hour,
-                          workingHours
-                        )
+                      {/* Quarter-hour interactive zones */}
+                      {[0, 15, 30, 45].map((minute, i) => (
+                        <div
+                          key={minute}
+                          className='absolute inset-x-0 h-6 cursor-pointer transition-colors hover:bg-accent'
+                          style={{ top: `${i * 24}px` }}
+                          onClick={() =>
+                            onAdd?.({ startDate: selectedDate, hour, minute })
+                          }
+                        />
+                      ))}
 
-                        return (
-                          <div
-                            key={hour}
-                            className={cn(
-                              "relative",
-                              isDisabled && "bg-calendar-disabled-hour"
-                            )}
-                            style={{ height: "96px" }}>
-                            {index !== 0 && (
-                              <div className='pointer-events-none absolute inset-x-0 top-0 border-b' />
-                            )}
-
-                            {[0, 15, 30, 45].map((minute, i) => (
-                              <div
-                                key={minute}
-                                className='absolute inset-x-0 h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                                style={{ top: `${i * 24}px` }}
-                                onClick={() =>
-                                  onAdd?.({
-                                    startDate: selectedDate,
-                                    hour,
-                                    minute,
-                                  })
-                                }
-                              />
-                            ))}
-
-                            <div className='pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed' />
-                          </div>
-                        )
-                      })}
+                      {/* Half-hour dashed line */}
+                      <div className='pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed' />
                     </div>
                   )
                 })}
 
+                {/* Events */}
                 {groupedEvents.map((group, groupIndex) =>
                   group.map((event) => {
                     let style = getEventBlockStyle(
@@ -2209,11 +2200,9 @@ export function EventCalendarDayView() {
                       selectedDate,
                       groupIndex,
                       groupedEvents.length,
-                      {
-                        from: earliestEventHour,
-                        to: latestEventHour,
-                      }
+                      { from: earliestEventHour, to: latestEventHour }
                     )
+
                     const hasOverlap = groupedEvents.some(
                       (otherGroup, otherIndex) =>
                         otherIndex !== groupIndex &&
@@ -2249,6 +2238,7 @@ export function EventCalendarDayView() {
               <CalendarTimeline
                 firstVisibleHour={earliestEventHour}
                 lastVisibleHour={latestEventHour}
+                formatDate={formatDate}
               />
             </div>
           </div>
@@ -2283,7 +2273,7 @@ export function EventCalendarDayView() {
 
           {currentEvents.length > 0 && (
             <ScrollArea
-              className='h-[422px] px-4'
+              className='h-[255px] px-4'
               type='always'>
               <div className='space-y-6 pb-4'>
                 {currentEvents.map((event) => {
@@ -2298,15 +2288,15 @@ export function EventCalendarDayView() {
                       <div className='flex items-center gap-1.5 text-muted-foreground'>
                         <CalendarIcon className='size-3.5' />
                         <span className='text-sm'>
-                          {format(new Date(), "MMM d, yyyy")}
+                          {formatDate(new Date(), RANGE_DATE_FORMAT)}
                         </span>
                       </div>
 
                       <div className='flex items-center gap-1.5 text-muted-foreground'>
                         <Clock className='size-3.5' />
                         <span className='text-sm'>
-                          {format(parseISO(event.startDate), "h:mm a")} -{" "}
-                          {format(parseISO(event.endDate), "h:mm a")}
+                          {formatDate(parseISO(event.startDate), TIME_FORMAT)} -{" "}
+                          {formatDate(parseISO(event.endDate), TIME_FORMAT)}
                         </span>
                       </div>
                     </div>

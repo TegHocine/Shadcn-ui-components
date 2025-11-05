@@ -16,7 +16,7 @@ export default function Page() {
             </p>
           </div>
 
-          <div className='w-full'>
+          <div className='w-full overflow-auto'>
             <ExampleBigCalendar />
           </div>
 

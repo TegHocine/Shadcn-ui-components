@@ -34,13 +34,22 @@ export default function ExampleBigCalendar() {
   const events = CALENDAR_ITEMS_MOCK || []
   const users = USERS_MOCK || []
   return (
-    <div className='w-full h-auto rounded-md bg-card'>
+    <div className='overflow-hidden rounded-xl border'>
       <EventCalendarRoot
         badgeVariant='mixed'
         view={view}
         events={events}
         locale={fr}
         onViewUpdate={setView}
+        workingHours={{
+          0: { from: 9, to: 17 },
+          1: { from: 9, to: 17 },
+          2: { from: 9, to: 17 },
+          3: { from: 9, to: 17 },
+          4: { from: 9, to: 17 },
+          5: { from: 9, to: 17 },
+          6: { from: 9, to: 17 },
+        }}
         copy={{
           EVENT_COUNT: "événements",
           NO_EVENTS_SCHEDULED: "Aucun événement prévu pour le mois sélectionné",

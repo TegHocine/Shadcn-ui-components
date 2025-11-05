@@ -41,6 +41,11 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --bg-calendar-disabled-hour: repeating-linear-gradient(
+    -60deg,
+    hsl(var(--border)) 0 0.5px,
+    transparent 0.5px 8px
+  );
 }
 
 :root {
