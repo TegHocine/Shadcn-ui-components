@@ -1,16 +1,7 @@
 "use client"
 
-import type { Dispatch, HTMLAttributes, SetStateAction } from "react"
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
-
 import { cva, type VariantProps } from "class-variance-authority"
+import type { Locale } from "date-fns"
 import {
   addDays,
   addMonths,
@@ -18,7 +9,6 @@ import {
   addYears,
   areIntervalsOverlapping,
   differenceInDays,
-  differenceInMilliseconds,
   differenceInMinutes,
   eachDayOfInterval,
   endOfDay,
@@ -46,6 +36,7 @@ import {
   subWeeks,
   subYears,
 } from "date-fns"
+import { enUS } from "date-fns/locale"
 import {
   CalendarIcon,
   CalendarX2,
@@ -54,8 +45,9 @@ import {
   Clock,
   Text,
 } from "lucide-react"
-import { DndProvider, useDrag, useDragLayer, useDrop } from "react-dnd"
-import { getEmptyImage, HTML5Backend } from "react-dnd-html5-backend"
+import type React from "react"
+import type { Dispatch, HTMLAttributes, SetStateAction } from "react"
+import { createContext, useContext, useEffect, useMemo, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -94,16 +86,36 @@ export type ICalendarCell = {
 }
 
 const WORKING_HOURS = {
-  0: { from: 9, to: 5 },
-  1: { from: 9, to: 5 },
-  2: { from: 9, to: 5 },
-  3: { from: 9, to: 5 },
-  4: { from: 9, to: 5 },
-  5: { from: 9, to: 5 },
-  6: { from: 9, to: 5 },
+  0: { from: 0, to: 24 },
+  1: { from: 0, to: 24 },
+  2: { from: 0, to: 24 },
+  3: { from: 0, to: 24 },
+  4: { from: 0, to: 24 },
+  5: { from: 0, to: 24 },
+  6: { from: 0, to: 24 },
 }
 
 const VISIBLE_HOURS = { from: 0, to: 24 }
+
+const MAX_VISIBLE_EVENTS = 3
+
+const DEFAULT_COPY = {
+  EVENT_COUNT: "events",
+  NO_EVENTS_SCHEDULED: "No events scheduled for the selected month",
+  NO_APPOINTMENTS: "No appointments or consultations at the moment",
+  HAPPENING_NOW: "Happening now",
+
+  DAY_OF: "Day",
+  OF: "of",
+
+  SUNDAY: "Sun",
+  MONDAY: "Mon",
+  TUESDAY: "Tue",
+  WEDNESDAY: "Wed",
+  THURSDAY: "Thu",
+  FRIDAY: "Fri",
+  SATURDAY: "Sat",
+}
 
 function rangeText(view: TCalendarView, date: Date) {
   const formatString = "MMM d, yyyy"
@@ -422,6 +434,8 @@ const EventCalendarContext = createContext(
     updateEvent: (event: IEvent) => void
     singleDayEvents: IEvent[]
     multiDayEvents: IEvent[]
+    locale: Locale
+    copy: typeof DEFAULT_COPY
     onAdd?: ({
       startDate,
       hour,
@@ -444,6 +458,8 @@ export type EventCalendarProviderProps = {
   visibleHours?: TVisibleHours
   view?: TCalendarView
   badgeVariant?: TBadgeVariant
+  locale?: Locale // locale type to Locale
+  copy?: Partial<typeof DEFAULT_COPY>
   onAdd?: ({
     startDate,
     hour,
@@ -464,6 +480,8 @@ function EventCalendarProvider({
   visibleHours = VISIBLE_HOURS,
   view = "day",
   badgeVariant = "dot",
+  locale = enUS,
+  copy = {},
   onAdd,
   onDrag,
   onDetail,
@@ -476,6 +494,8 @@ function EventCalendarProvider({
   // In a real scenario, the events would be updated in the backend
   // and the request that fetches the events should be refetched
   const [localEvents, setLocalEvents] = useState<IEvent[]>(events)
+
+  const mergedCopy = useMemo(() => ({ ...DEFAULT_COPY, ...copy }), [copy])
 
   useEffect(() => {
     setLocalEvents(events)
@@ -608,6 +628,8 @@ function EventCalendarProvider({
         updateEvent,
         singleDayEvents,
         multiDayEvents,
+        locale, // Pass locale directly
+        copy: mergedCopy,
         onAdd,
         onDrag,
         onDetail,
@@ -627,223 +649,6 @@ function useEventCalendar() {
   return context
 }
 
-function CustomDragLayer() {
-  const {
-    isDragging,
-    item,
-    currentOffset,
-    initialOffset,
-    initialClientOffset,
-  } = useDragLayer((monitor) => ({
-    item: monitor.getItem() as {
-      event: IEvent
-      children: React.ReactNode
-      width: number
-      height: number
-    } | null,
-    itemType: monitor.getItemType(),
-    isDragging: monitor.isDragging(),
-    currentOffset: monitor.getClientOffset(),
-    initialOffset: monitor.getInitialSourceClientOffset(),
-    initialClientOffset: monitor.getInitialClientOffset(),
-  }))
-
-  if (
-    !isDragging ||
-    !item ||
-    !currentOffset ||
-    !initialOffset ||
-    !initialClientOffset
-  ) {
-    return null
-  }
-
-  const offsetX = initialClientOffset.x - initialOffset.x
-  const offsetY = initialClientOffset.y - initialOffset.y
-
-  const layerStyles: React.CSSProperties = {
-    position: "fixed",
-    pointerEvents: "none",
-    zIndex: 100,
-    left: currentOffset.x - offsetX,
-    top: currentOffset.y - offsetY,
-  }
-
-  return (
-    <div style={layerStyles}>
-      <div
-        className=''
-        style={{
-          width: item.width,
-          height: item.height,
-        }}>
-        {item.children}
-      </div>
-    </div>
-  )
-}
-
-function DndProviderWrapper({ children }: { children: React.ReactNode }) {
-  return (
-    <DndProvider backend={HTML5Backend}>
-      {children}
-      <CustomDragLayer />
-    </DndProvider>
-  )
-}
-
-const ItemTypes = {
-  EVENT: "event",
-}
-
-function DraggableEvent({
-  event,
-  children,
-}: {
-  event: IEvent
-  children: React.ReactNode
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-
-  const [{ isDragging }, drag, preview] = useDrag(() => ({
-    type: ItemTypes.EVENT,
-    item: () => {
-      const width = ref.current?.offsetWidth || 0
-      const height = ref.current?.offsetHeight || 0
-      return { event, children, width, height }
-    },
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }))
-
-  // Hide the default drag preview
-  useEffect(() => {
-    preview(getEmptyImage(), { captureDraggingState: true })
-  }, [preview])
-
-  drag(ref)
-
-  return (
-    <div
-      ref={ref}
-      className={cn(isDragging && "opacity-40")}>
-      {children}
-    </div>
-  )
-}
-
-function DroppableDayCell({
-  cell,
-  children,
-}: {
-  cell: ICalendarCell
-  children: React.ReactNode
-}) {
-  const { updateEvent } = useEventCalendar()
-
-  const [{ isOver, canDrop }, drop] = useDrop(
-    () => ({
-      accept: ItemTypes.EVENT,
-      drop: (item: { event: IEvent }) => {
-        const droppedEvent = item.event
-
-        const eventStartDate = parseISO(droppedEvent.startDate)
-        const eventEndDate = parseISO(droppedEvent.endDate)
-
-        const eventDurationMs = differenceInMilliseconds(
-          eventEndDate,
-          eventStartDate
-        )
-
-        const newStartDate = new Date(cell.date)
-        newStartDate.setHours(
-          eventStartDate.getHours(),
-          eventStartDate.getMinutes(),
-          eventStartDate.getSeconds(),
-          eventStartDate.getMilliseconds()
-        )
-        const newEndDate = new Date(newStartDate.getTime() + eventDurationMs)
-
-        updateEvent({
-          ...droppedEvent,
-          startDate: newStartDate.toISOString(),
-          endDate: newEndDate.toISOString(),
-        })
-
-        return { moved: true }
-      },
-      collect: (monitor) => ({
-        isOver: monitor.isOver(),
-        canDrop: monitor.canDrop(),
-      }),
-    }),
-    [cell.date, updateEvent]
-  )
-
-  return (
-    <div
-      ref={drop as unknown as React.RefObject<HTMLDivElement>}
-      className={cn(isOver && canDrop && "bg-accent/50")}>
-      {children}
-    </div>
-  )
-}
-
-function DroppableTimeBlock({
-  date,
-  hour,
-  minute,
-  children,
-}: {
-  date: Date
-  hour: number
-  minute: number
-  children: React.ReactNode
-}) {
-  const { updateEvent } = useEventCalendar()
-
-  const [{ isOver, canDrop }, drop] = useDrop(
-    () => ({
-      accept: ItemTypes.EVENT,
-      drop: (item: { event: IEvent }) => {
-        const droppedEvent = item.event
-
-        const eventStartDate = parseISO(droppedEvent.startDate)
-        const eventEndDate = parseISO(droppedEvent.endDate)
-
-        const eventDurationMs = differenceInMilliseconds(
-          eventEndDate,
-          eventStartDate
-        )
-
-        const newStartDate = new Date(date)
-        newStartDate.setHours(hour, minute, 0, 0)
-        const newEndDate = new Date(newStartDate.getTime() + eventDurationMs)
-
-        updateEvent({
-          ...droppedEvent,
-          startDate: newStartDate.toISOString(),
-          endDate: newEndDate.toISOString(),
-        })
-
-        return { moved: true }
-      },
-      collect: (monitor) => ({
-        isOver: monitor.isOver(),
-        canDrop: monitor.canDrop(),
-      }),
-    }),
-    [date, hour, minute, updateEvent]
-  )
-
-  return (
-    <div
-      ref={drop as unknown as React.RefObject<HTMLDivElement>}
-      className={cn("h-[24px]", isOver && canDrop && "bg-accent/50")}>
-      {children}
-    </div>
-  )
-}
-
 export function EventCalendarRoot({
   children,
   ...props
@@ -857,20 +662,13 @@ export function EventCalendarRoot({
   )
 }
 
-export function EventCalendarContainer({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return <DndProviderWrapper>{children}</DndProviderWrapper>
-}
-
 export function EventCalendarHeader({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const { selectedDate, setSelectedDate, events, view } = useEventCalendar()
+  const { selectedDate, setSelectedDate, events, view, copy } =
+    useEventCalendar()
 
   const today = new Date()
   const handleClick = () => setSelectedDate(today)
@@ -910,14 +708,14 @@ export function EventCalendarHeader({
             <Badge
               variant='outline'
               className='px-1.5'>
-              {eventCount} events
+              {eventCount} {copy.EVENT_COUNT}
             </Badge>
           </div>
 
           <div className='flex items-center gap-2'>
             <Button
               variant='outline'
-              className='size-6 px-0 [&_svg]:size-4.5'
+              className='size-6 px-0 [&_svg]:size-4.5 bg-transparent'
               onClick={handlePrevious}>
               <ChevronLeft />
             </Button>
@@ -928,7 +726,7 @@ export function EventCalendarHeader({
 
             <Button
               variant='outline'
-              className='size-6 px-0 [&_svg]:size-4.5'
+              className='size-6 px-0 [&_svg]:size-4.5 bg-transparent'
               onClick={handleNext}>
               <ChevronRight />
             </Button>
@@ -990,7 +788,7 @@ function AgendaEventCard({
   eventCurrentDay?: number
   eventTotalDays?: number
 }) {
-  const { badgeVariant, onDetail } = useEventCalendar()
+  const { badgeVariant, onDetail, copy } = useEventCalendar()
 
   const startDate = parseISO(event.startDate)
   const endDate = parseISO(event.endDate)
@@ -1033,8 +831,8 @@ function AgendaEventCard({
 
           <p className='font-medium'>
             {eventCurrentDay && eventTotalDays && (
-              <span className='mr-1 text-xs'>
-                Day {eventCurrentDay} of {eventTotalDays} •{" "}
+              <span className='text-xs'>
+                {copy.DAY_OF} {eventCurrentDay} {copy.OF} {eventTotalDays} •{" "}
               </span>
             )}
             {event.title}
@@ -1111,7 +909,7 @@ function AgendaDayGroup({
 }
 
 export function EventCalendarAgendaView() {
-  const { selectedDate, singleDayEvents, multiDayEvents, view } =
+  const { selectedDate, singleDayEvents, multiDayEvents, view, copy } =
     useEventCalendar()
 
   const eventsByDay = useMemo(() => {
@@ -1189,9 +987,7 @@ export function EventCalendarAgendaView() {
           {!hasAnyEvents && (
             <div className='flex flex-col items-center justify-center gap-2 py-20 text-muted-foreground'>
               <CalendarX2 className='size-10' />
-              <p className='text-sm md:text-base'>
-                No events scheduled for the selected month
-              </p>
+              <p className='text-sm md:text-base'>{copy.NO_EVENTS_SCHEDULED}</p>
             </div>
           )}
         </div>
@@ -1275,7 +1071,7 @@ function YearViewDayCell({
 }
 
 function YearViewMonth({ month, events }: { month: Date; events: IEvent[] }) {
-  const { setSelectedDate, onViewUpdate } = useEventCalendar()
+  const { setSelectedDate, onViewUpdate, copy } = useEventCalendar()
 
   const monthName = format(month, "MMMM")
 
@@ -1289,7 +1085,15 @@ function YearViewMonth({ month, events }: { month: Date; events: IEvent[] }) {
     return [...blanks, ...days]
   }, [month])
 
-  const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const weekDays = [
+    copy.SUNDAY,
+    copy.MONDAY,
+    copy.TUESDAY,
+    copy.WEDNESDAY,
+    copy.THURSDAY,
+    copy.FRIDAY,
+    copy.SATURDAY,
+  ]
 
   const handleClick = () => {
     setSelectedDate(new Date(month.getFullYear(), month.getMonth(), 1))
@@ -1376,10 +1180,6 @@ export function EventCalendarYearView() {
   )
 }
 
-const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-
-const MAX_VISIBLE_EVENTS = 3
-
 function MonthEventBadge({
   event,
   cellDate,
@@ -1398,7 +1198,7 @@ function MonthEventBadge({
   VariantProps<typeof eventBadgeVariants>,
   "color" | "multiDayPosition"
 >) {
-  const { badgeVariant, onDetail } = useEventCalendar()
+  const { badgeVariant, onDetail, copy } = useEventCalendar()
 
   const itemStart = startOfDay(parseISO(event.startDate))
   const itemEnd = endOfDay(parseISO(event.endDate))
@@ -1439,46 +1239,44 @@ function MonthEventBadge({
   }
 
   return (
-    <DraggableEvent event={event}>
-      <div
-        role='button'
-        tabIndex={0}
-        className={eventBadgeClasses}
-        onKeyDown={handleKeyDown}
-        onClick={() => onDetail?.(event)}>
-        <div className='flex items-center gap-1.5 truncate'>
-          {!["middle", "last"].includes(position) &&
-            ["mixed", "dot"].includes(badgeVariant) && (
-              <svg
-                width='8'
-                height='8'
-                viewBox='0 0 8 8'
-                className='event-dot shrink-0'>
-                <circle
-                  cx='4'
-                  cy='4'
-                  r='4'
-                />
-              </svg>
-            )}
-
-          {renderBadgeText && (
-            <p className='flex-1 truncate font-semibold'>
-              {eventCurrentDay && (
-                <span className='text-xs'>
-                  Day {eventCurrentDay} of {eventTotalDays} •{" "}
-                </span>
-              )}
-              {event.title}
-            </p>
+    <div
+      role='button'
+      tabIndex={0}
+      className={eventBadgeClasses}
+      onKeyDown={handleKeyDown}
+      onClick={() => onDetail?.(event)}>
+      <div className='flex items-center gap-1.5 truncate'>
+        {!["middle", "last"].includes(position) &&
+          ["mixed", "dot"].includes(badgeVariant) && (
+            <svg
+              width='8'
+              height='8'
+              viewBox='0 0 8 8'
+              className='event-dot shrink-0'>
+              <circle
+                cx='4'
+                cy='4'
+                r='4'
+              />
+            </svg>
           )}
-        </div>
 
         {renderBadgeText && (
-          <span>{format(new Date(event.startDate), "h:mm a")}</span>
+          <p className='flex-1 truncate font-semibold'>
+            {eventCurrentDay && (
+              <span className='text-xs'>
+                {copy.DAY_OF} {eventCurrentDay} {copy.OF} {eventTotalDays} •{" "}
+              </span>
+            )}
+            {event.title}
+          </p>
         )}
       </div>
-    </DraggableEvent>
+
+      {renderBadgeText && (
+        <span>{format(new Date(event.startDate), "h:mm a")}</span>
+      )}
+    </div>
   )
 }
 
@@ -1534,78 +1332,76 @@ function DayCell({
   }
 
   return (
-    <DroppableDayCell cell={cell}>
+    <div
+      className={cn(
+        "flex h-full flex-col gap-1 border-l border-t py-1.5 lg:pb-2 lg:pt-1",
+        isSunday && "border-l-0"
+      )}>
+      <button
+        onClick={handleClick}
+        className={cn(
+          "flex size-6 translate-x-1 items-center justify-center rounded-full text-xs font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:px-2",
+          !currentMonth && "opacity-20",
+          isToday(date) &&
+            "bg-primary font-bold text-primary-foreground hover:bg-primary"
+        )}>
+        {day}
+      </button>
+
       <div
         className={cn(
-          "flex h-full flex-col gap-1 border-l border-t py-1.5 lg:pb-2 lg:pt-1",
-          isSunday && "border-l-0"
+          "flex h-6 gap-1 px-2 lg:h-[94px] lg:flex-col lg:gap-2 lg:px-0",
+          !currentMonth && "opacity-50"
         )}>
-        <button
-          onClick={handleClick}
-          className={cn(
-            "flex size-6 translate-x-1 items-center justify-center rounded-full text-xs font-semibold hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring lg:px-2",
-            !currentMonth && "opacity-20",
-            isToday(date) &&
-              "bg-primary font-bold text-primary-foreground hover:bg-primary"
-          )}>
-          {day}
-        </button>
+        {[0, 1, 2].map((position) => {
+          const event = cellEvents.find((e) => e.position === position)
+          const eventKey = event
+            ? `event-${event.id}-${position}`
+            : `empty-${position}`
 
-        <div
+          return (
+            <div
+              key={eventKey}
+              className='lg:flex-1'>
+              {event && (
+                <>
+                  <EventBullet
+                    className='lg:hidden'
+                    color={event.color}
+                  />
+                  <MonthEventBadge
+                    className='hidden lg:flex'
+                    event={event}
+                    cellDate={startOfDay(date)}
+                  />
+                </>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {cellEvents.length > MAX_VISIBLE_EVENTS && (
+        <p
           className={cn(
-            "flex h-6 gap-1 px-2 lg:h-[94px] lg:flex-col lg:gap-2 lg:px-0",
+            "h-4.5 px-1.5 text-xs font-semibold text-muted-foreground",
             !currentMonth && "opacity-50"
           )}>
-          {[0, 1, 2].map((position) => {
-            const event = cellEvents.find((e) => e.position === position)
-            const eventKey = event
-              ? `event-${event.id}-${position}`
-              : `empty-${position}`
-
-            return (
-              <div
-                key={eventKey}
-                className='lg:flex-1'>
-                {event && (
-                  <>
-                    <EventBullet
-                      className='lg:hidden'
-                      color={event.color}
-                    />
-                    <MonthEventBadge
-                      className='hidden lg:flex'
-                      event={event}
-                      cellDate={startOfDay(date)}
-                    />
-                  </>
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {cellEvents.length > MAX_VISIBLE_EVENTS && (
-          <p
-            className={cn(
-              "h-4.5 px-1.5 text-xs font-semibold text-muted-foreground",
-              !currentMonth && "opacity-50"
-            )}>
-            <span className='sm:hidden'>
-              +{cellEvents.length - MAX_VISIBLE_EVENTS}
-            </span>
-            <span className='hidden sm:inline'>
-              {" "}
-              {cellEvents.length - MAX_VISIBLE_EVENTS} more...
-            </span>
-          </p>
-        )}
-      </div>
-    </DroppableDayCell>
+          <span className='sm:hidden'>
+            +{cellEvents.length - MAX_VISIBLE_EVENTS}
+          </span>
+          <span className='hidden sm:inline'>
+            {" "}
+            {cellEvents.length - MAX_VISIBLE_EVENTS} more...
+          </span>
+        </p>
+      )}
+    </div>
   )
 }
 
 export function EventCalendarMonthView() {
-  const { selectedDate, multiDayEvents, singleDayEvents, view } =
+  const { selectedDate, multiDayEvents, singleDayEvents, view, copy } =
     useEventCalendar()
 
   const allEvents = [...multiDayEvents, ...singleDayEvents]
@@ -1622,12 +1418,22 @@ export function EventCalendarMonthView() {
     [multiDayEvents, singleDayEvents, selectedDate]
   )
 
+  const weekDays = [
+    copy.SUNDAY,
+    copy.MONDAY,
+    copy.TUESDAY,
+    copy.WEDNESDAY,
+    copy.THURSDAY,
+    copy.FRIDAY,
+    copy.SATURDAY,
+  ]
+
   if (view !== "month") return null
 
   return (
     <div>
       <div className='grid grid-cols-7 divide-x'>
-        {WEEK_DAYS.map((day) => (
+        {weekDays.map((day) => (
           <div
             key={day}
             className='flex items-center justify-center py-2'>
@@ -1768,39 +1574,37 @@ function EventBlock({
   }
 
   return (
-    <DraggableEvent event={event}>
-      <div
-        role='button'
-        tabIndex={0}
-        className={calendarWeekEventCardClasses}
-        style={{ height: `${heightInPixels}px` }}
-        onKeyDown={handleKeyDown}
-        onClick={() => onDetail?.(event)}>
-        <div className='flex items-center gap-1.5 truncate'>
-          {["mixed", "dot"].includes(badgeVariant) && (
-            <svg
-              width='8'
-              height='8'
-              viewBox='0 0 8 8'
-              className='event-dot shrink-0'>
-              <circle
-                cx='4'
-                cy='4'
-                r='4'
-              />
-            </svg>
-          )}
-
-          <p className='truncate font-semibold'>{event.title}</p>
-        </div>
-
-        {durationInMinutes > 25 && (
-          <p>
-            {format(start, "h:mm a")} - {format(end, "h:mm a")}
-          </p>
+    <div
+      role='button'
+      tabIndex={0}
+      className={calendarWeekEventCardClasses}
+      style={{ height: `${heightInPixels}px` }}
+      onKeyDown={handleKeyDown}
+      onClick={() => onDetail?.(event)}>
+      <div className='flex items-center gap-1.5 truncate'>
+        {["mixed", "dot"].includes(badgeVariant) && (
+          <svg
+            width='8'
+            height='8'
+            viewBox='0 0 8 8'
+            className='event-dot shrink-0'>
+            <circle
+              cx='4'
+              cy='4'
+              r='4'
+            />
+          </svg>
         )}
+
+        <p className='truncate font-semibold'>{event.title}</p>
       </div>
-    </DraggableEvent>
+
+      {durationInMinutes > 25 && (
+        <p>
+          {format(start, "h:mm a")} - {format(end, "h:mm a")}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -2018,62 +1822,52 @@ export function EventCalendarWeekView() {
                             key={hour}
                             className={cn(
                               "relative",
-                              isDisabled && "bg-calendar-disabled-hour"
+                              isDisabled &&
+                                "bg-[repeating-linear-gradient(-60deg,hsl(var(--border))_0_0.5px,transparent_0.5px_8px)]"
                             )}
                             style={{ height: "96px" }}>
                             {index !== 0 && (
                               <div className='pointer-events-none absolute inset-x-0 top-0 border-b'></div>
                             )}
 
-                            <DroppableTimeBlock
-                              date={day}
-                              hour={hour}
-                              minute={0}>
-                              <div
-                                className='absolute inset-x-0 top-0 h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                                onClick={() =>
-                                  onAdd?.({ startDate: day, hour, minute: 0 })
-                                }
-                              />
-                            </DroppableTimeBlock>
+                            {hours.map((hour, index) => {
+                              const isDisabled = !isWorkingHour(
+                                day,
+                                hour,
+                                workingHours
+                              )
 
-                            <DroppableTimeBlock
-                              date={day}
-                              hour={hour}
-                              minute={15}>
-                              <div
-                                className='absolute inset-x-0 top-[24px] h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                                onClick={() =>
-                                  onAdd?.({ startDate: day, hour, minute: 15 })
-                                }
-                              />
-                            </DroppableTimeBlock>
+                              return (
+                                <div
+                                  key={hour}
+                                  className={cn(
+                                    "relative",
+                                    isDisabled && "bg-calendar-disabled-hour"
+                                  )}
+                                  style={{ height: "96px" }}>
+                                  {index !== 0 && (
+                                    <div className='pointer-events-none absolute inset-x-0 top-0 border-b' />
+                                  )}
 
-                            <div className='pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed'></div>
+                                  {[0, 15, 30, 45].map((minute, i) => (
+                                    <div
+                                      key={minute}
+                                      className='absolute inset-x-0 h-[24px] cursor-pointer transition-colors hover:bg-accent'
+                                      style={{ top: `${i * 24}px` }}
+                                      onClick={() =>
+                                        onAdd?.({
+                                          startDate: day,
+                                          hour,
+                                          minute,
+                                        })
+                                      }
+                                    />
+                                  ))}
 
-                            <DroppableTimeBlock
-                              date={day}
-                              hour={hour}
-                              minute={30}>
-                              <div
-                                className='absolute inset-x-0 top-[48px] h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                                onClick={() =>
-                                  onAdd?.({ startDate: day, hour, minute: 30 })
-                                }
-                              />
-                            </DroppableTimeBlock>
-
-                            <DroppableTimeBlock
-                              date={day}
-                              hour={hour}
-                              minute={45}>
-                              <div
-                                className='absolute inset-x-0 top-[72px] h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                                onClick={() =>
-                                  onAdd?.({ startDate: day, hour, minute: 45 })
-                                }
-                              />
-                            </DroppableTimeBlock>
+                                  <div className='pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed' />
+                                </div>
+                              )
+                            })}
                           </div>
                         )
                       })}
@@ -2085,7 +1879,10 @@ export function EventCalendarWeekView() {
                             day,
                             groupIndex,
                             groupedEvents.length,
-                            { from: earliestEventHour, to: latestEventHour }
+                            {
+                              from: earliestEventHour,
+                              to: latestEventHour,
+                            }
                           )
                           const hasOverlap = groupedEvents.some(
                             (otherGroup, otherIndex) =>
@@ -2274,6 +2071,7 @@ export function EventCalendarDayView() {
     workingHours,
     view,
     onAdd,
+    copy,
   } = useEventCalendar()
 
   if (view !== "day") return null
@@ -2348,84 +2146,58 @@ export function EventCalendarDayView() {
                     hour,
                     workingHours
                   )
-                  console.log({ isDisabled })
+
                   return (
                     <div
                       key={hour}
                       className={cn(
                         "relative",
-                        isDisabled && "bg-calendar-disabled-hour"
+                        isDisabled &&
+                          "bg-[repeating-linear-gradient(-60deg,hsl(var(--border))_0_0.5px,transparent_0.5px_8px)]"
                       )}
                       style={{ height: "96px" }}>
                       {index !== 0 && (
                         <div className='pointer-events-none absolute inset-x-0 top-0 border-b'></div>
                       )}
 
-                      <DroppableTimeBlock
-                        date={selectedDate}
-                        hour={hour}
-                        minute={0}>
-                        <div
-                          className='absolute inset-x-0 top-0 h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                          onClick={() =>
-                            onAdd?.({
-                              startDate: selectedDate,
-                              hour,
-                              minute: 0,
-                            })
-                          }
-                        />
-                      </DroppableTimeBlock>
+                      {hours.map((hour, index) => {
+                        const isDisabled = !isWorkingHour(
+                          selectedDate,
+                          hour,
+                          workingHours
+                        )
 
-                      <DroppableTimeBlock
-                        date={selectedDate}
-                        hour={hour}
-                        minute={15}>
-                        <div
-                          className='absolute inset-x-0 top-[24px] h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                          onClick={() =>
-                            onAdd?.({
-                              startDate: selectedDate,
-                              hour,
-                              minute: 15,
-                            })
-                          }
-                        />
-                      </DroppableTimeBlock>
+                        return (
+                          <div
+                            key={hour}
+                            className={cn(
+                              "relative",
+                              isDisabled && "bg-calendar-disabled-hour"
+                            )}
+                            style={{ height: "96px" }}>
+                            {index !== 0 && (
+                              <div className='pointer-events-none absolute inset-x-0 top-0 border-b' />
+                            )}
 
-                      <div className='pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed'></div>
+                            {[0, 15, 30, 45].map((minute, i) => (
+                              <div
+                                key={minute}
+                                className='absolute inset-x-0 h-[24px] cursor-pointer transition-colors hover:bg-accent'
+                                style={{ top: `${i * 24}px` }}
+                                onClick={() =>
+                                  onAdd?.({
+                                    startDate: selectedDate,
+                                    hour,
+                                    minute,
+                                  })
+                                }
+                              />
+                            ))}
 
-                      <DroppableTimeBlock
-                        date={selectedDate}
-                        hour={hour}
-                        minute={30}>
-                        <div
-                          className='absolute inset-x-0 top-[48px] h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                          onClick={() =>
-                            onAdd?.({
-                              startDate: selectedDate,
-                              hour,
-                              minute: 45,
-                            })
-                          }
-                        />
-                      </DroppableTimeBlock>
-
-                      <DroppableTimeBlock
-                        date={selectedDate}
-                        hour={hour}
-                        minute={45}>
-                        <div
-                          className='absolute inset-x-0 top-[72px] h-[24px] cursor-pointer transition-colors hover:bg-accent'
-                          onClick={() =>
-                            onAdd?.({
-                              startDate: selectedDate,
-                              hour,
-                              minute: 45,
-                            })
-                          }
-                        />
-                      </DroppableTimeBlock>
+                            <div className='pointer-events-none absolute inset-x-0 top-1/2 border-b border-dashed' />
+                          </div>
+                        )
+                      })}
                     </div>
                   )
                 })}
@@ -2437,7 +2209,10 @@ export function EventCalendarDayView() {
                       selectedDate,
                       groupIndex,
                       groupedEvents.length,
-                      { from: earliestEventHour, to: latestEventHour }
+                      {
+                        from: earliestEventHour,
+                        to: latestEventHour,
+                      }
                     )
                     const hasOverlap = groupedEvents.some(
                       (otherGroup, otherIndex) =>
@@ -2497,12 +2272,12 @@ export function EventCalendarDayView() {
               </span>
 
               <p className='text-sm font-semibold text-foreground'>
-                Happening now
+                {copy.HAPPENING_NOW}
               </p>
             </div>
           ) : (
             <p className='p-4 text-center text-sm italic text-muted-foreground'>
-              No appointments or consultations at the moment
+              {copy.NO_APPOINTMENTS}
             </p>
           )}
 

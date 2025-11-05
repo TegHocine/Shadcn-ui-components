@@ -1,3 +1,5 @@
+"use-client"
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { ButtonGroup } from "@/components/ui/button-group"
@@ -11,7 +13,6 @@ import {
 import { AvatarGroup } from "@/registry/new-york/ui/avatar-group"
 import {
   EventCalendarAgendaView,
-  EventCalendarContainer,
   EventCalendarDayView,
   EventCalendarHeader,
   EventCalendarMonthView,
@@ -19,6 +20,7 @@ import {
   EventCalendarWeekView,
   EventCalendarYearView,
 } from "@/registry/new-york/ui/event-calendar"
+import { fr } from "date-fns/locale"
 import { CalendarRange, Columns, Grid2x2, Grid3x3, List } from "lucide-react"
 import { useState } from "react"
 import { CALENDAR_ITEMS_MOCK, USERS_MOCK } from "./lib/events"
@@ -36,7 +38,26 @@ export default function ExampleBigCalendar() {
       <EventCalendarRoot
         badgeVariant='mixed'
         view={view}
-        events={events}>
+        events={events}
+        locale={fr}
+        onViewUpdate={setView}
+        copy={{
+          EVENT_COUNT: "événements",
+          NO_EVENTS_SCHEDULED: "Aucun événement prévu pour le mois sélectionné",
+          NO_APPOINTMENTS: "Aucun rendez-vous ou consultation pour le moment",
+          HAPPENING_NOW: "En cours",
+
+          DAY_OF: "Jour",
+          OF: "sur",
+
+          SUNDAY: "Dim",
+          MONDAY: "Lun",
+          TUESDAY: "Mar",
+          WEDNESDAY: "Mer",
+          THURSDAY: "Jeu",
+          FRIDAY: "Ven",
+          SATURDAY: "Sam",
+        }}>
         <EventCalendarHeader>
           <ButtonGroup>
             <Button
@@ -143,13 +164,11 @@ export default function ExampleBigCalendar() {
             </SelectContent>
           </Select>
         </EventCalendarHeader>
-        <EventCalendarContainer>
-          <EventCalendarDayView />
-          <EventCalendarWeekView />
-          <EventCalendarMonthView />
-          <EventCalendarYearView />
-          <EventCalendarAgendaView />
-        </EventCalendarContainer>
+        <EventCalendarDayView />
+        <EventCalendarWeekView />
+        <EventCalendarMonthView />
+        <EventCalendarYearView />
+        <EventCalendarAgendaView />
       </EventCalendarRoot>
     </div>
   )
