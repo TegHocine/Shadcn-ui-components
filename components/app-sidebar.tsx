@@ -16,17 +16,17 @@ import { usePathname } from "next/navigation"
 
 const components = [
   {
-    id: "/avatar-group/",
+    id: "/avatar-group",
     name: "Avatar Group",
     category: "UI",
   },
   {
-    id: "/big-calendar/",
+    id: "/big-calendar",
     name: "Big Calendar",
     category: "Calendar",
   },
   {
-    id: "/big-calendar-dnd/",
+    id: "/big-calendar-dnd",
     name: "Big Calendar dnd",
     category: "Calendar dnd",
   },
@@ -34,6 +34,8 @@ const components = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+
+  console.log(pathname)
 
   return (
     <>
@@ -63,12 +65,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarGroupContent className='flex flex-col gap-2'>
               <SidebarMenu>
                 {components.map((component) => (
-                  <SidebarMenuItem key={component.id}>
-                    <SidebarMenuButton
-                      isActive={pathname === `${component.id}`}>
-                      <Link href={`${component.id}`}>{component.name}</Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  <Link
+                    key={component.id}
+                    href={`${component.id}`}
+                    className='cursor-pointer'>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        className='cursor-pointer'
+                        isActive={pathname === `${component.id}`}>
+                        {component.name}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </Link>
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
