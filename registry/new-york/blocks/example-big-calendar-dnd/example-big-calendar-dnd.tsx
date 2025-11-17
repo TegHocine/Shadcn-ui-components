@@ -13,26 +13,40 @@ import {
 import { AvatarGroup } from "@/registry/new-york/ui/avatar-group"
 import {
   EventCalendarAgendaView,
+  EventCalendarContainer,
   EventCalendarDayView,
   EventCalendarHeader,
   EventCalendarMonthView,
   EventCalendarRoot,
   EventCalendarWeekView,
   EventCalendarYearView,
-} from "@/registry/new-york/ui/event-calendar"
+  IEvent,
+} from "@/registry/new-york/ui/event-calendar-dnd"
 import { CalendarRange, Columns, Grid2x2, Grid3x3, List } from "lucide-react"
 import { useState } from "react"
 import { CALENDAR_ITEMS_MOCK, USERS_MOCK } from "./lib/events"
 
-export default function ExampleBigCalendar() {
+export default function ExampleBigCalendarDnd() {
   const [view, setView] = useState<
     "day" | "week" | "month" | "year" | "agenda"
   >("month")
   const [selectedUserId, setSelectedUserId] = useState<string>("all")
+  const [events, setEvents] = useState<IEvent[]>(CALENDAR_ITEMS_MOCK || [])
 
-  const events = CALENDAR_ITEMS_MOCK || []
   const users = USERS_MOCK || []
 
+  const onDrag = (event: IEvent) => {
+    const newEvent: IEvent = event
+
+    newEvent.startDate = new Date(event.startDate).toISOString()
+    newEvent.endDate = new Date(event.endDate).toISOString()
+
+    setEvents((prev) => {
+      const index = prev.findIndex((e) => e.id === event.id)
+      if (index === -1) return prev
+      return [...prev.slice(0, index), newEvent, ...prev.slice(index + 1)]
+    })
+  }
   return (
     <div className='overflow-hidden rounded-xl border'>
       <EventCalendarRoot
@@ -40,6 +54,7 @@ export default function ExampleBigCalendar() {
         view={view}
         events={events}
         onViewUpdate={setView}
+        onDrag={onDrag}
         workingHours={{
           0: { from: 9, to: 17 },
           1: { from: 9, to: 17 },
@@ -155,11 +170,13 @@ export default function ExampleBigCalendar() {
             </SelectContent>
           </Select>
         </EventCalendarHeader>
-        <EventCalendarDayView />
-        <EventCalendarWeekView />
-        <EventCalendarMonthView />
-        <EventCalendarYearView />
-        <EventCalendarAgendaView />
+        <EventCalendarContainer>
+          <EventCalendarDayView />
+          <EventCalendarWeekView />
+          <EventCalendarMonthView />
+          <EventCalendarYearView />
+          <EventCalendarAgendaView />
+        </EventCalendarContainer>
       </EventCalendarRoot>
     </div>
   )

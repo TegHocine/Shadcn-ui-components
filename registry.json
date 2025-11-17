@@ -4,7 +4,7 @@
   "homepage": "https://acme.com",
   "items": [
     {
-      "name": "event-group",
+      "name": "event-calendar",
       "type": "registry:ui",
       "title": "Big Calendar",
       "description": "A big calendar for managing events.",
@@ -13,6 +13,20 @@
       "files": [
         {
           "path": "registry/new-york/ui/event-calendar.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
+      "name": "event-calendar-dnd",
+      "type": "registry:ui",
+      "title": "Big Calendar",
+      "description": "A big calendar for managing events with React dnd.",
+      "dependencies": ["date-fns", "react-dnd-html5-backend", "react-dnd"],
+      "registryDependencies": ["button", "badge", "calendar", "scroll-area"],
+      "files": [
+        {
+          "path": "registry/new-york/ui/event-calendar-dnd.tsx",
           "type": "registry:ui"
         }
       ]

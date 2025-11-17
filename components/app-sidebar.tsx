@@ -3,7 +3,10 @@
 import {
   Sidebar,
   SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
   SidebarHeader,
+  SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
@@ -22,6 +25,11 @@ const components = [
     name: "Big Calendar",
     category: "Calendar",
   },
+  {
+    id: "/big-calendar-dnd/",
+    name: "Big Calendar dnd",
+    category: "Calendar dnd",
+  },
 ]
 
 // Group components by category
@@ -34,33 +42,49 @@ const groupedComponents = components.reduce((acc, component) => {
   return acc
 }, {} as Record<string, typeof components>)
 
-export function AppSidebar() {
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
   return (
-    <Sidebar>
-      <SidebarHeader className='px-4 py-6'>
-        <Link
-          href='/'
-          className='flex items-center gap-2'>
-          <div className='w-8 h-8 rounded-lg bg-primary flex items-center justify-center'>
-            <Code2 className='w-5 h-5 text-primary-foreground' />
-          </div>
-          <span className='font-bold text-lg'>ComponentUI</span>
-        </Link>
-      </SidebarHeader>
-
-      <SidebarContent>
-        {components.map((component) => (
-          <SidebarMenuItem key={component.id}>
-            <SidebarMenuButton
-              asChild
-              isActive={pathname === `${component.id}`}>
-              <Link href={`${component.id}`}>{component.name}</Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ))}
-      </SidebarContent>
-    </Sidebar>
+    <>
+      <Sidebar
+        collapsible='offcanvas'
+        {...props}>
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                className='data-[slot=sidebar-menu-button]:!p-1.5'>
+                <Link
+                  href='/'
+                  className='flex items-center gap-2'>
+                  <div className='w-8 h-8 rounded-lg bg-primary flex items-center justify-center'>
+                    <Code2 className='w-5 h-5 text-primary-foreground' />
+                  </div>
+                  <span className='font-bold text-lg'>ComponentUI</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupContent className='flex flex-col gap-2'>
+              <SidebarMenu>
+                {components.map((component) => (
+                  <SidebarMenuItem key={component.id}>
+                    <SidebarMenuButton
+                      isActive={pathname === `${component.id}`}>
+                      <Link href={`${component.id}`}>{component.name}</Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+    </>
   )
 }
