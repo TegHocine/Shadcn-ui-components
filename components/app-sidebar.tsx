@@ -32,16 +32,6 @@ const components = [
   },
 ]
 
-// Group components by category
-const groupedComponents = components.reduce((acc, component) => {
-  const category = component.category
-  if (!acc[category]) {
-    acc[category] = []
-  }
-  acc[category].push(component)
-  return acc
-}, {} as Record<string, typeof components>)
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
