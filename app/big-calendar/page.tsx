@@ -38,7 +38,7 @@ export default function Page() {
               <h2 className='text-xl font-semibold'>Installation</h2>
               <CliCommandCode
                 commands={getCommands(
-                  `shadcn@latest add ${origin}/r/even-calendar.json`
+                  `shadcn@latest add ${origin}/r/event-calendar.json`
                 )}
               />
             </div>
