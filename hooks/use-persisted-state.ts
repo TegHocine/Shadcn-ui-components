@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react"
 
 export default function usePersistedState<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState(() => {
+  const [value, setValue] = useState<T>(initialValue)
+
+  useEffect(() => {
     const item = localStorage.getItem(key)
-    return item ? (JSON.parse(item) as T) : initialValue
-  })
+    if (item) setValue(JSON.parse(item) as T)
+  }, [key])
 
   useEffect(() => {
     localStorage.setItem(key, JSON.stringify(value))
