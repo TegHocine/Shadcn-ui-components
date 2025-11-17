@@ -1,5 +1,6 @@
 "use client"
 
+import { CliCommandCode } from "@/components/cli-command-code"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card } from "@/components/ui/card"
 import {
@@ -10,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { SidebarInset } from "@/components/ui/sidebar"
+import { getCommands } from "@/lib/const/commands"
 import { AvatarGroup } from "@/registry/new-york/ui/avatar-group"
 import { useState } from "react"
 
@@ -139,9 +141,11 @@ export default function Page() {
 
           <div className='space-y-4'>
             <h2 className='text-xl font-semibold'>Installation</h2>
-            <div className='bg-muted p-4 rounded-lg font-mono text-sm overflow-x-auto'>
-              npx shadcn-cli@latest add avatar-group
-            </div>
+            <CliCommandCode
+              commands={getCommands(
+                "shadcn@latest add ${window.location.origin}/r/avatar-group.json"
+              )}
+            />
           </div>
         </div>
       </main>

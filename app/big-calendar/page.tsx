@@ -1,6 +1,8 @@
 "use client"
 
+import { CliCommandCode } from "@/components/cli-command-code"
 import { SidebarInset } from "@/components/ui/sidebar"
+import { getCommands } from "@/lib/const/commands"
 import ExampleBigCalendar from "@/registry/new-york/blocks/example-big-calendar/example-big-calendar"
 
 export default function Page() {
@@ -9,7 +11,7 @@ export default function Page() {
       <main className='flex-1 overflow-auto'>
         <div className='max-w-6xl mx-auto px-6 py-12 space-y-8'>
           <div className='space-y-2'>
-            <h1 className='text-3xl font-bold'>Big Calendar</h1>
+            <h1 className='text-3xl font-bold'>Event Calendar</h1>
             <p className='text-muted-foreground'>
               Advanced event calendar with multiple view modes (Day, Week,
               Month, Year, Agenda)
@@ -22,9 +24,11 @@ export default function Page() {
 
           <div className='space-y-4'>
             <h2 className='text-xl font-semibold'>Installation</h2>
-            <div className='bg-muted p-4 rounded-lg font-mono text-sm overflow-x-auto'>
-              npx shadcn-cli@latest add big-calendar
-            </div>
+            <CliCommandCode
+              commands={getCommands(
+                "shadcn@latest add ${window.location.origin}/r/even-calendar.json"
+              )}
+            />
           </div>
         </div>
       </main>
