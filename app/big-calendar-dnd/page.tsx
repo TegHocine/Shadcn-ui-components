@@ -5,8 +5,15 @@ import { Card, CardContent } from "@/components/ui/card"
 import { SidebarInset } from "@/components/ui/sidebar"
 import { getCommands } from "@/lib/const/commands"
 import ExampleBigCalendarDnd from "@/registry/new-york/blocks/example-big-calendar-dnd/example-big-calendar-dnd"
+import { useEffect, useState } from "react"
 
 export default function Page() {
+  const [origin, setOrigin] = useState("")
+
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
+
   return (
     <SidebarInset>
       <main className='flex-1 overflow-auto'>
@@ -27,14 +34,16 @@ export default function Page() {
             </Card>
           </div>
 
-          <div className='space-y-4'>
-            <h2 className='text-xl font-semibold'>Installation</h2>
-            <CliCommandCode
-              commands={getCommands(
-                `shadcn@latest add ${window.location.origin}/r/even-calendar-dnd.json`
-              )}
-            />
-          </div>
+          {origin && (
+            <div className='space-y-4'>
+              <h2 className='text-xl font-semibold'>Installation</h2>
+              <CliCommandCode
+                commands={getCommands(
+                  `shadcn@latest add ${origin}/r/even-calendar-dnd.json`
+                )}
+              />
+            </div>
+          )}
         </div>
       </main>
     </SidebarInset>

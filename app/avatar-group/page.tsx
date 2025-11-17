@@ -13,7 +13,7 @@ import {
 import { SidebarInset } from "@/components/ui/sidebar"
 import { getCommands } from "@/lib/const/commands"
 import { AvatarGroup } from "@/registry/new-york/ui/avatar-group"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 const USERS = [
   {
@@ -40,6 +40,11 @@ const USERS = [
 
 export default function Page() {
   const [selectedUser, setSelectedUser] = useState("all")
+  const [origin, setOrigin] = useState("")
+
+  useEffect(() => {
+    setOrigin(window.location.origin)
+  }, [])
 
   return (
     <SidebarInset>
@@ -139,14 +144,16 @@ export default function Page() {
             </div>
           </Card>
 
-          <div className='space-y-4'>
-            <h2 className='text-xl font-semibold'>Installation</h2>
-            <CliCommandCode
-              commands={getCommands(
-                `shadcn@latest add ${window.location.origin}/r/avatar-group.json`
-              )}
-            />
-          </div>
+          {origin && (
+            <div className='space-y-4'>
+              <h2 className='text-xl font-semibold'>Installation</h2>
+              <CliCommandCode
+                commands={getCommands(
+                  `shadcn@latest add ${origin}/r/avatar-group.json`
+                )}
+              />
+            </div>
+          )}
         </div>
       </main>
     </SidebarInset>
