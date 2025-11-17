@@ -143,7 +143,7 @@ export default function Page() {
             <h2 className='text-xl font-semibold'>Installation</h2>
             <CliCommandCode
               commands={getCommands(
-                "shadcn@latest add ${window.location.origin}/r/avatar-group.json"
+                `shadcn@latest add ${window.location.origin}/r/avatar-group.json`
               )}
             />
           </div>

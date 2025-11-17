@@ -38,22 +38,21 @@ export const CliCommandCode = ({
   }
 
   return (
-    <Card className='not-content bg-code p-0'>
+    <Card className='bg-card p-0'>
       <CardContent className='p-0'>
         <Tabs
           value={selectedTab}
           onValueChange={setSelectedTab}
           className='gap-0'>
-          <div className='flex items-center border-b border-input px-3 py-1'>
-            <div className='mr-2 flex size-4 items-center justify-center bg-foreground/70'>
-              <TerminalIcon className='size-3 text-code' />
+          <div className='border-border/50 flex items-center gap-2 border-b px-3 py-1'>
+            <div className='bg-foreground flex size-4 items-center justify-center rounded-[1px] opacity-70'>
+              <TerminalIcon className='text-background size-3' />
             </div>
             <TabsList className='font-mono'>
               {commands.map((command, index) => (
                 <TabsTrigger
                   key={index}
-                  value={command.label}
-                  className='data-[state=active]:border-input data-[state=active]:bg-muted/50'>
+                  value={command.label}>
                   {command.label}
                 </TabsTrigger>
               ))}

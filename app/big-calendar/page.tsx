@@ -1,6 +1,7 @@
 "use client"
 
 import { CliCommandCode } from "@/components/cli-command-code"
+import { Card, CardContent } from "@/components/ui/card"
 import { SidebarInset } from "@/components/ui/sidebar"
 import { getCommands } from "@/lib/const/commands"
 import ExampleBigCalendar from "@/registry/new-york/blocks/example-big-calendar/example-big-calendar"
@@ -19,14 +20,18 @@ export default function Page() {
           </div>
 
           <div className='w-full overflow-auto'>
-            <ExampleBigCalendar />
+            <Card className='w-full p-0'>
+              <CardContent className='w-full p-2.5'>
+                <ExampleBigCalendar />
+              </CardContent>
+            </Card>
           </div>
 
           <div className='space-y-4'>
             <h2 className='text-xl font-semibold'>Installation</h2>
             <CliCommandCode
               commands={getCommands(
-                "shadcn@latest add ${window.location.origin}/r/even-calendar.json"
+                `shadcn@latest add ${window.location.origin}/r/even-calendar.json`
               )}
             />
           </div>
